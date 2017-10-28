@@ -34,8 +34,6 @@
 #include "vchiq_connected.h"
 #include "vchiq_core.h"
 #include "vchiq_killable.h"
-#include <linux/module.h>
-#include <linux/mutex.h>
 
 #define  MAX_CALLBACKS  10
 
@@ -54,7 +52,7 @@ static   struct mutex               g_connected_mutex;
 static void connected_init(void)
 {
 	if (!g_once_init) {
-		mutex_init(&g_connected_mutex);
+		lmutex_init(&g_connected_mutex);
 		g_once_init = 1;
 	}
 }
@@ -72,7 +70,7 @@ void vchiq_add_connected_callback(VCHIQ_CONNECTED_CALLBACK_T callback)
 {
 	connected_init();
 
-	if (mutex_lock_interruptible(&g_connected_mutex) != 0)
+	if (lmutex_lock_interruptible(&g_connected_mutex) != 0)
 		return;
 
 	if (g_connected)
@@ -82,7 +80,7 @@ void vchiq_add_connected_callback(VCHIQ_CONNECTED_CALLBACK_T callback)
 	else {
 		if (g_num_deferred_callbacks >= MAX_CALLBACKS)
 			vchiq_log_error(vchiq_core_log_level,
-				"There already %d callback registered - "
+				"There are already %d callbacks registered - "
 				"please increase MAX_CALLBACKS",
 				g_num_deferred_callbacks);
 		else {
@@ -91,7 +89,7 @@ void vchiq_add_connected_callback(VCHIQ_CONNECTED_CALLBACK_T callback)
 			g_num_deferred_callbacks++;
 		}
 	}
-	mutex_unlock(&g_connected_mutex);
+	lmutex_unlock(&g_connected_mutex);
 }
 
 /****************************************************************************
@@ -107,7 +105,7 @@ void vchiq_call_connected_callbacks(void)
 
 	connected_init();
 
-	if (mutex_lock_interruptible(&g_connected_mutex) != 0)
+	if (lmutex_lock_interruptible(&g_connected_mutex) != 0)
 		return;
 
 	for (i = 0; i <  g_num_deferred_callbacks; i++)
@@ -115,6 +113,6 @@ void vchiq_call_connected_callbacks(void)
 
 	g_num_deferred_callbacks = 0;
 	g_connected = 1;
-	mutex_unlock(&g_connected_mutex);
+	lmutex_unlock(&g_connected_mutex);
 }
 EXPORT_SYMBOL(vchiq_add_connected_callback);

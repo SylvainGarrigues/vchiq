@@ -32,7 +32,6 @@
  */
 
 #include "vchiq_util.h"
-#include "vchiq_killable.h"
 
 static inline int is_pow2(int i)
 {
@@ -48,8 +47,8 @@ int vchiu_queue_init(VCHIU_QUEUE_T *queue, int size)
 	queue->write = 0;
 	queue->initialized = 1;
 
-	sema_init(&queue->pop, 0);
-	sema_init(&queue->push, 0);
+	_sema_init(&queue->pop, 0);
+	_sema_init(&queue->push, 0);
 
 	queue->storage = kzalloc(size * sizeof(VCHIQ_HEADER_T *), GFP_KERNEL);
 	if (queue->storage == NULL) {

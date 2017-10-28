@@ -34,7 +34,6 @@
 #ifndef VCHIQ_IOCTLS_H
 #define VCHIQ_IOCTLS_H
 
-#include <linux/ioctl.h>
 #include "vchiq_if.h"
 
 #define VCHIQ_IOC_MAGIC 0xc4

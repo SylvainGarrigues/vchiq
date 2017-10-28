@@ -30,16 +30,14 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include <linux/module.h>
-#include <linux/types.h>
+
+#include <interface/compat/vchi_bsd.h>
 
 #include "interface/vchi/vchi.h"
 #include "vchiq.h"
 #include "vchiq_core.h"
 
 #include "vchiq_util.h"
-
-#include <stddef.h>
 
 #define vchiq_status_to_vchi(status) ((int32_t)status)
 
@@ -250,7 +248,7 @@ EXPORT_SYMBOL(vchi_bulk_queue_receive);
  * Name: vchi_bulk_queue_transmit
  *
  * Arguments:  VCHI_BULK_HANDLE_T handle,
- *             const void *data_src,
+ *             void *data_src,
  *             uint32_t data_size,
  *             VCHI_FLAGS_T flags,
  *             void *bulk_handle
@@ -261,7 +259,7 @@ EXPORT_SYMBOL(vchi_bulk_queue_receive);
  *
  ***********************************************************/
 int32_t vchi_bulk_queue_transmit(VCHI_SERVICE_HANDLE_T handle,
-	const void *data_src,
+	void *data_src,
 	uint32_t data_size,
 	VCHI_FLAGS_T flags,
 	void *bulk_handle)
@@ -770,6 +768,7 @@ int32_t vchi_get_peer_version( const VCHI_SERVICE_HANDLE_T handle, short *peer_v
 }
 EXPORT_SYMBOL(vchi_get_peer_version);
 
+#ifdef notyet
 /* ----------------------------------------------------------------------
  * read a uint32_t from buffer.
  * network format is defined to be little endian
@@ -817,6 +816,7 @@ vchi_writebuf_uint16(void *_ptr, uint16_t value)
 	ptr[0] = (value >> 0)  & 0xFF;
 	ptr[1] = (value >> 8)  & 0xFF;
 }
+#endif
 
 /***********************************************************
  * Name: vchi_service_use

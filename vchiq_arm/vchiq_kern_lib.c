@@ -33,10 +33,6 @@
 
 /* ---- Include Files ---------------------------------------------------- */
 
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/mutex.h>
-
 #include "vchiq_core.h"
 #include "vchiq_arm.h"
 #include "vchiq_killable.h"
@@ -105,7 +101,7 @@ VCHIQ_STATUS_T vchiq_initialise(VCHIQ_INSTANCE_T *instanceOut)
 
 	instance->connected = 0;
 	instance->state = state;
-	mutex_init(&instance->bulk_waiter_list_mutex);
+	lmutex_init(&instance->bulk_waiter_list_mutex);
 	INIT_LIST_HEAD(&instance->bulk_waiter_list);
 
 	*instanceOut = instance;
@@ -134,13 +130,13 @@ VCHIQ_STATUS_T vchiq_shutdown(VCHIQ_INSTANCE_T instance)
 	vchiq_log_trace(vchiq_core_log_level,
 		"%s(%p) called", __func__, instance);
 
-	if (mutex_lock_interruptible(&state->mutex) != 0)
+	if (lmutex_lock_interruptible(&state->mutex) != 0)
 		return VCHIQ_RETRY;
 
 	/* Remove all services */
 	status = vchiq_shutdown_internal(state, instance);
 
-	mutex_unlock(&state->mutex);
+	lmutex_unlock(&state->mutex);
 
 	vchiq_log_trace(vchiq_core_log_level,
 		"%s(%p): returning %d", __func__, instance, status);
@@ -158,8 +154,13 @@ VCHIQ_STATUS_T vchiq_shutdown(VCHIQ_INSTANCE_T instance)
 					"bulk_waiter - cleaned up %x "
 					"for pid %d",
 					(unsigned int)waiter, waiter->pid);
+			_sema_destroy(&waiter->bulk_waiter.event);
+
 			kfree(waiter);
 		}
+
+		lmutex_destroy(&instance->bulk_waiter_list_mutex);
+
 		kfree(instance);
 	}
 
@@ -173,7 +174,7 @@ EXPORT_SYMBOL(vchiq_shutdown);
 *
 ***************************************************************************/
 
-int vchiq_is_connected(VCHIQ_INSTANCE_T instance)
+static int vchiq_is_connected(VCHIQ_INSTANCE_T instance)
 {
 	return instance->connected;
 }
@@ -192,9 +193,9 @@ VCHIQ_STATUS_T vchiq_connect(VCHIQ_INSTANCE_T instance)
 	vchiq_log_trace(vchiq_core_log_level,
 		"%s(%p) called", __func__, instance);
 
-	if (mutex_lock_interruptible(&state->mutex) != 0) {
+	if (lmutex_lock_interruptible(&state->mutex) != 0) {
 		vchiq_log_trace(vchiq_core_log_level,
-			"%s: call to mutex_lock failed", __func__);
+			"%s: call to lmutex_lock failed", __func__);
 		status = VCHIQ_RETRY;
 		goto failed;
 	}
@@ -203,7 +204,7 @@ VCHIQ_STATUS_T vchiq_connect(VCHIQ_INSTANCE_T instance)
 	if (status == VCHIQ_SUCCESS)
 		instance->connected = 1;
 
-	mutex_unlock(&state->mutex);
+	lmutex_unlock(&state->mutex);
 
 failed:
 	vchiq_log_trace(vchiq_core_log_level,
@@ -289,7 +290,8 @@ VCHIQ_STATUS_T vchiq_open_service(
 
 	if (service) {
 		*phandle = service->handle;
-		status = vchiq_open_service_internal(service, current->pid);
+		status = vchiq_open_service_internal(service,
+		    (uintptr_t)current);
 		if (status != VCHIQ_SUCCESS) {
 			vchiq_remove_service(service->handle);
 			*phandle = VCHIQ_SERVICE_HANDLE_INVALID;
@@ -306,10 +308,10 @@ EXPORT_SYMBOL(vchiq_open_service);
 
 VCHIQ_STATUS_T
 vchiq_queue_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle,
-	const void *data, unsigned int size, void *userdata)
+	void *data, unsigned int size, void *userdata)
 {
 	return vchiq_bulk_transfer(handle,
-		VCHI_MEM_HANDLE_INVALID, (void *)data, size, userdata,
+		VCHI_MEM_HANDLE_INVALID, data, size, userdata,
 		VCHIQ_BULK_MODE_CALLBACK, VCHIQ_BULK_TRANSMIT);
 }
 EXPORT_SYMBOL(vchiq_queue_bulk_transmit);
@@ -325,7 +327,7 @@ vchiq_queue_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 EXPORT_SYMBOL(vchiq_queue_bulk_receive);
 
 VCHIQ_STATUS_T
-vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle, const void *data,
+vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 	unsigned int size, void *userdata, VCHIQ_BULK_MODE_T mode)
 {
 	VCHIQ_STATUS_T status;
@@ -334,12 +336,12 @@ vchiq_bulk_transmit(VCHIQ_SERVICE_HANDLE_T handle, const void *data,
 	case VCHIQ_BULK_MODE_NOCALLBACK:
 	case VCHIQ_BULK_MODE_CALLBACK:
 		status = vchiq_bulk_transfer(handle,
-			VCHI_MEM_HANDLE_INVALID, (void *)data, size, userdata,
+			VCHI_MEM_HANDLE_INVALID, data, size, userdata,
 			mode, VCHIQ_BULK_TRANSMIT);
 		break;
 	case VCHIQ_BULK_MODE_BLOCKING:
 		status = vchiq_blocking_bulk_transfer(handle,
-			(void *)data, size, VCHIQ_BULK_TRANSMIT);
+			data, size, VCHIQ_BULK_TRANSMIT);
 		break;
 	default:
 		return VCHIQ_ERROR;
@@ -364,7 +366,7 @@ vchiq_bulk_receive(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 		break;
 	case VCHIQ_BULK_MODE_BLOCKING:
 		status = vchiq_blocking_bulk_transfer(handle,
-			(void *)data, size, VCHIQ_BULK_RECEIVE);
+			data, size, VCHIQ_BULK_RECEIVE);
 		break;
 	default:
 		return VCHIQ_ERROR;
@@ -392,10 +394,10 @@ vchiq_blocking_bulk_transfer(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 
 	unlock_service(service);
 
-	mutex_lock(&instance->bulk_waiter_list_mutex);
+	lmutex_lock(&instance->bulk_waiter_list_mutex);
 	list_for_each(pos, &instance->bulk_waiter_list) {
 		if (list_entry(pos, struct bulk_waiter_node,
-				list)->pid == current->pid) {
+				list)->pid == current->p_pid) {
 			waiter = list_entry(pos,
 				struct bulk_waiter_node,
 				list);
@@ -403,7 +405,7 @@ vchiq_blocking_bulk_transfer(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 			break;
 		}
 	}
-	mutex_unlock(&instance->bulk_waiter_list_mutex);
+	lmutex_unlock(&instance->bulk_waiter_list_mutex);
 
 	if (waiter) {
 		VCHIQ_BULK_T *bulk = waiter->bulk_waiter.bulk;
@@ -443,15 +445,17 @@ vchiq_blocking_bulk_transfer(VCHIQ_SERVICE_HANDLE_T handle, void *data,
 			bulk->userdata = NULL;
 			spin_unlock(&bulk_waiter_spinlock);
 		}
+		_sema_destroy(&waiter->bulk_waiter.event);
+
 		kfree(waiter);
 	} else {
-		waiter->pid = current->pid;
-		mutex_lock(&instance->bulk_waiter_list_mutex);
+		waiter->pid = current->p_pid;
+		lmutex_lock(&instance->bulk_waiter_list_mutex);
 		list_add(&waiter->list, &instance->bulk_waiter_list);
-		mutex_unlock(&instance->bulk_waiter_list_mutex);
+		lmutex_unlock(&instance->bulk_waiter_list_mutex);
 		vchiq_log_info(vchiq_arm_log_level,
 				"saved bulk_waiter %x for pid %d",
-				(unsigned int)waiter, current->pid);
+				(unsigned int)waiter, current->p_pid);
 	}
 
 	return status;

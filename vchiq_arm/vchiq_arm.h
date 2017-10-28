@@ -35,12 +35,7 @@
 #ifndef VCHIQ_ARM_H
 #define VCHIQ_ARM_H
 
-#include <linux/mutex.h>
-#include <linux/platform_device.h>
-#include <linux/semaphore.h>
-#include <linux/atomic.h>
 #include "vchiq_core.h"
-#include "vchiq_debugfs.h"
 
 
 enum vc_suspend_status {
@@ -72,7 +67,7 @@ enum USE_TYPE_E {
 
 typedef struct vchiq_arm_state_struct {
 	/* Keepalive-related data */
-	struct task_struct *ka_thread;
+	VCHIQ_THREAD_T ka_thread;
 	struct completion ka_evt;
 	atomic_t ka_use_count;
 	atomic_t ka_use_ack_count;
@@ -129,7 +124,11 @@ typedef struct vchiq_arm_state_struct {
 extern int vchiq_arm_log_level;
 extern int vchiq_susp_log_level;
 
-int vchiq_platform_init(struct platform_device *pdev, VCHIQ_STATE_T *state);
+extern int __init
+vchiq_platform_init(VCHIQ_STATE_T *state);
+
+extern void __exit
+vchiq_platform_exit(VCHIQ_STATE_T *state);
 
 extern VCHIQ_STATE_T *
 vchiq_get_state(void);
@@ -154,14 +153,9 @@ vchiq_check_resume(VCHIQ_STATE_T *state);
 
 extern void
 vchiq_check_suspend(VCHIQ_STATE_T *state);
- VCHIQ_STATUS_T
+
+VCHIQ_STATUS_T
 vchiq_use_service(VCHIQ_SERVICE_HANDLE_T handle);
-
-extern VCHIQ_STATUS_T
-vchiq_release_service(VCHIQ_SERVICE_HANDLE_T handle);
-
-extern VCHIQ_STATUS_T
-vchiq_check_service(VCHIQ_SERVICE_T *service);
 
 extern VCHIQ_STATUS_T
 vchiq_platform_suspend(VCHIQ_STATE_T *state);
@@ -190,8 +184,10 @@ vchiq_use_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service,
 extern VCHIQ_STATUS_T
 vchiq_release_internal(VCHIQ_STATE_T *state, VCHIQ_SERVICE_T *service);
 
+#ifdef notyet
 extern VCHIQ_DEBUGFS_NODE_T *
 vchiq_instance_get_debugfs_node(VCHIQ_INSTANCE_T instance);
+#endif
 
 extern int
 vchiq_instance_get_use_count(VCHIQ_INSTANCE_T instance);
@@ -215,6 +211,5 @@ set_resume_state(VCHIQ_ARM_STATE_T *arm_state,
 
 extern void
 start_suspend_timer(VCHIQ_ARM_STATE_T *arm_state);
-
 
 #endif /* VCHIQ_ARM_H */

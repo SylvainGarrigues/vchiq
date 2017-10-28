@@ -345,7 +345,7 @@ int32_t vchi_bulk_queue_receive_reloc( const VCHI_SERVICE_HANDLE_T handle,
 
 // Routine to queue up data ready for transfer to the other (once they have signalled they are ready)
 extern int32_t vchi_bulk_queue_transmit( VCHI_SERVICE_HANDLE_T handle,
-                                         const void *data_src,
+                                         void *data_src,
                                          uint32_t data_size,
                                          VCHI_FLAGS_T flags,
                                          void *transfer_handle );

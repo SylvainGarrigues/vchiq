@@ -34,10 +34,6 @@
 #ifndef _VCHI_MESSAGE_H_
 #define _VCHI_MESSAGE_H_
 
-#include <linux/kernel.h>
-#include <linux/types.h>
-#include <linux/semaphore.h>
-
 #include "interface/vchi/vchi_cfg_internal.h"
 #include "interface/vchi/vchi_common.h"
 

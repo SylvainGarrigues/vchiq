@@ -34,42 +34,43 @@
 #ifndef VCHIQ_CORE_H
 #define VCHIQ_CORE_H
 
-#include <linux/mutex.h>
-#include <linux/semaphore.h>
-#include <linux/kthread.h>
+#include <interface/compat/vchi_bsd.h>
+#include <interface/compat/list.h>
 
 #include "vchiq_cfg.h"
 
 #include "vchiq.h"
 
 /* Run time control of log level, based on KERN_XXX level. */
+#ifndef VCHIQ_LOG_DEFAULT
 #define VCHIQ_LOG_DEFAULT  4
+#endif
 #define VCHIQ_LOG_ERROR    3
 #define VCHIQ_LOG_WARNING  4
 #define VCHIQ_LOG_INFO     6
 #define VCHIQ_LOG_TRACE    7
 
-#define VCHIQ_LOG_PREFIX   KERN_INFO "vchiq: "
+#define VCHIQ_LOG_PREFIX   "vchiq: "
 
 #ifndef vchiq_log_error
 #define vchiq_log_error(cat, fmt, ...) \
 	do { if (cat >= VCHIQ_LOG_ERROR) \
-		printk(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
+		printf(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
 #endif
 #ifndef vchiq_log_warning
 #define vchiq_log_warning(cat, fmt, ...) \
 	do { if (cat >= VCHIQ_LOG_WARNING) \
-		 printk(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
+		 printf(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
 #endif
 #ifndef vchiq_log_info
 #define vchiq_log_info(cat, fmt, ...) \
 	do { if (cat >= VCHIQ_LOG_INFO) \
-		printk(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
+		printf(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
 #endif
 #ifndef vchiq_log_trace
 #define vchiq_log_trace(cat, fmt, ...) \
 	do { if (cat >= VCHIQ_LOG_TRACE) \
-		printk(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
+		printf(VCHIQ_LOG_PREFIX fmt "\n", ##__VA_ARGS__); } while (0)
 #endif
 
 #define vchiq_loud_error(...) \
@@ -279,7 +280,7 @@ typedef struct vchiq_slot_info_struct {
 	/* Use two counters rather than one to avoid the need for a mutex. */
 	short use_count;
 	short release_count;
-} VCHIQ_SLOT_INFO_T;
+}  VCHIQ_SLOT_INFO_T;
 
 typedef struct vchiq_service_struct {
 	VCHIQ_SERVICE_BASE_T base;
@@ -419,13 +420,13 @@ struct vchiq_state_struct {
 	VCHIQ_INSTANCE_T *instance;
 
 	/* Processes incoming messages */
-	struct task_struct *slot_handler_thread;
+	VCHIQ_THREAD_T slot_handler_thread;
 
 	/* Processes recycled slots */
-	struct task_struct *recycle_thread;
+	VCHIQ_THREAD_T recycle_thread;
 
 	/* Processes synchronous messages */
-	struct task_struct *sync_thread;
+	VCHIQ_THREAD_T sync_thread;
 
 	/* Local implementation of the trigger remote event */
 	struct semaphore trigger_event;
@@ -708,5 +709,8 @@ vchiq_set_conn_state(VCHIQ_STATE_T *state, VCHIQ_CONNSTATE_T newstate);
 extern void
 vchiq_log_dump_mem(const char *label, uint32_t addr, const void *voidMem,
 	size_t numBytes);
+
+extern void
+vchiq_core_initialize(void);
 
 #endif

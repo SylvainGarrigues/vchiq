@@ -34,6 +34,7 @@
 #ifndef VCHIQ_KILLABLE_H
 #define VCHIQ_KILLABLE_H
 
+#ifdef notyet
 #include <linux/mutex.h>
 #include <linux/semaphore.h>
 
@@ -65,5 +66,7 @@ static inline int __must_check mutex_lock_interruptible_killable(struct mutex *l
 	return ret;
 }
 #define mutex_lock_interruptible mutex_lock_interruptible_killable
+
+#endif
 
 #endif
